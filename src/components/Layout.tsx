@@ -105,6 +105,7 @@ export function Layout() {
       </main>
       <footer className={styles.footer}>
         <span>DocForum — care continuity, escrow-secured fulfillment.</span>
+        <Link to="/privacy" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)' }}>Privacy &amp; data use</Link>
       </footer>
     </div>
   );
