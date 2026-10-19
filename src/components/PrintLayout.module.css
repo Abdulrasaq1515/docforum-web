@@ -1,0 +1,159 @@
+/* PrintLayout — shared print/PDF layout component.
+   Screen: renders nothing (hidden in the document flow while screen is
+   showing; the caller uses a "print this section" button). Print: a
+   clean document with brand header, no nav chrome, controlled page breaks.
+
+   We need two render modes:
+   1. "Print preview" — same DOM as print, visible on screen (for review).
+   2. Hidden — the component is available in the DOM (for ref-based PDF
+      generation) but hidden until printing or previewing.
+*/
+
+/* ── Layout root ────────────────────────────────────────────────────────── */
+.root {
+  display: none; /* hidden by default; visible in print and when .visible */
+  font-family: var(--font-sans);
+  font-size: 11pt;
+  color: #111;
+  background: #fff;
+  margin: 0;
+  padding: 0;
+}
+
+.root.visible {
+  display: block;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--space-8, 2rem);
+  border: 1px solid var(--color-border, #e4dbcb);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 20px 44px -18px rgba(28, 24, 21, 0.28));
+  background: var(--color-surface, #fff);
+}
+
+/* ── Print-specific overrides ───────────────────────────────────────────── */
+@media print {
+  .root {
+    display: block !important;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    font-size: 11pt;
+    color: #000;
+    background: #fff;
+  }
+
+  /* Suppress all nav chrome and any other on-screen UI. */
+  body > *:not(.printRoot) {
+    display: none !important;
+  }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4, 1rem);
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #111;
+  margin-bottom: 1.25rem;
+}
+
+.brandBlock {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brandName {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
+}
+
+.metaBlock {
+  text-align: right;
+  font-size: 0.75rem;
+  color: #444;
+  line-height: 1.5;
+}
+
+.metaBlock strong {
+  display: block;
+  font-size: 1rem;
+  color: #111;
+  font-weight: 600;
+  margin-bottom: 0.2em;
+}
+
+/* ── Content body ───────────────────────────────────────────────────────── */
+.body {
+  line-height: 1.6;
+}
+
+/* ── Page breaks inside tables ──────────────────────────────────────────── */
+.body table {
+  width: 100%;
+  border-collapse: collapse;
+  page-break-inside: auto;
+}
+
+.body table tr {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+
+.body table thead {
+  display: table-header-group;
+}
+
+.body table tfoot {
+  display: table-footer-group;
+}
+
+/* ── QR codes ───────────────────────────────────────────────────────────── */
+.body img[data-qr] {
+  page-break-inside: avoid;
+  display: block;
+  margin: 0.5rem 0;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.footer {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #bbb;
+  font-size: 0.7rem;
+  color: #666;
+  display: flex;
+  justify-content: space-between;
+}
+
+@media print {
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+}
+
+/* ── Toolbar (print button, visible only on screen) ────────────────────── */
+.toolbar {
+  display: flex;
+  gap: var(--space-3, 0.75rem);
+  align-items: center;
+  margin-bottom: var(--space-4, 1rem);
+}
+
+@media print {
+  .toolbar {
+    display: none !important;
+  }
+}

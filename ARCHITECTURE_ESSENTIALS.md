@@ -51,11 +51,15 @@ those first if you're new to the org, not just this file.
   **preview**, not production: the free-tier backend spins down after 15
   minutes idle (~1 minute cold-start delay on the next request), and its
   Postgres expires 2026-10-14 unless renewed — data is disposable.
-- Router is `HashRouter`, not `BrowserRouter` — GitHub Pages has no
+- Router is `HashRouter` when `VITE_USE_HASH_ROUTER=true` (set by the
+  Pages build), `BrowserRouter` otherwise — GitHub Pages has no
   server-side rewrite for client-side routes, so a deep link like `/login`
   would 404 on refresh under history-API routing. Switch back to
-  `BrowserRouter` if this ever deploys somewhere with a real rewrite rule
-  (e.g. behind `docforum-core` itself, or Vercel/Netlify).
+  `BrowserRouter` (the default) by simply dropping the flag from the
+  build command when deploying somewhere with a real rewrite rule (e.g.
+  behind `docforum-core` itself, or Vercel/Netlify). Old `#/path` links
+  keep working in BrowserRouter mode via the `HashRedirectShim` — see
+  `docs/adr/0001-routing-strategy.md`.
 - `vite.config.ts`'s `base` is conditional on `GITHUB_PAGES=true` (set by
   `npm run build:pages`) — plain `npm run build` still serves from `/`.
 
@@ -391,6 +395,106 @@ offset pagination instead, only the two services and their
   `src/App.tsx` until a role actually needs them.
 - All three lists are `useInfiniteQuery`-based; the patient asks for older
   entries, the page never fetches ahead on its own.
+
+### Phase W7 — DataTable component (issue #116)
+
+No new backend shape: the table consumes any `CursorPage<T>` the existing
+services already return. The assumed / documented contract the table relies
+on:
+
+- **Pagination envelope**: `{ items: T[], nextCursor: string | null }`
+  (already mirrored in `models.ts` as `CursorPage<T>`). `nextCursor` is
+  opaque — passed back as `cursor`; `null` means the last page. Cursor
+  pagination can't jump to arbitrary page N, so the UI offers only "Older"
+  (load more) and "Newer"/"Newest" — never a page-number input.
+- **Sort**: the table emits a `{ key: string, direction: 'asc' | 'desc' }`
+  pair; the caller is responsible for translating that into whatever
+  server-side sort parameter the endpoint accepts (`?sort=field:asc` or
+  similar). The table itself never assumes a particular sort parameter
+  convention, so it works against any backend that accepts a column name +
+  direction.
+- **Filters**: text and select filters are validated client-side (length
+  cap, allowed-character regex, known options) and the resulting values
+  are passed back to the caller. The caller decides how to send them to
+  the server (and can apply any backend charset rule the endpoint has).
+- **URL state**: filters, sort and cursor live in the URL query as
+  `?<tableId>.f.<key>=…`, `?<tableId>.sort=…`, `?<tableId>.dir=…`,
+  `?<tableId>.cursor=…`. The cursor trail (history of cursors visited when
+  paging forward) is carried in browser history state under
+  `<tableId>.trail` so back/forward stays consistent.
+- If a future endpoint exposes a different page envelope (e.g.
+  `offset`/`limit` pagination), the table stays compatible as long as
+  the caller adapts the page shape into `DataTablePage<T>` — no internal
+  change is required.
+
+### Phase W7 — Print and PDF framework (issue #117)
+
+No backend shape — entirely client-side. The framework's only external
+touch is the lazy-loaded PDF libraries:
+
+- `jspdf` and `html2canvas` are added as `devDependencies` and imported
+  dynamically (`import()`) only when the user clicks "Export as PDF".
+  They are never part of the main bundle, never loaded on a screen that
+  doesn't offer PDF export, and no document content is sent to any
+  third-party service. The PDF is generated entirely in the browser from
+  the in-memory DOM.
+- The print stylesheet hides everything outside `.printRoot` during
+  `@media print`, so the shared header (`Layout`) and footer never
+  leak into a printed document. Page-break rules avoid splitting tables
+  and QR codes across pages.
+- The QR placeholder in `PaymentReceiptDocument` is a no-network
+  SVG placeholder that links to `https://stellar.expert/explorer/testnet/tx/<hash>`.
+  A real on-device QR renderer can be added later without changing the
+  contract; today the receipt prints the explorer URL as text so a
+  pharmacist can paste it.
+
+### Phase W7 — Privacy-preserving product analytics (issue #118)
+
+No backend shape assumed beyond a self-hosted, cookieless, aggregate
+analytics endpoint (Plausible or Umami compatible). The contract the
+frontend enforces unilaterally:
+
+- **Endpoint configuration**: `VITE_ANALYTICS_ENDPOINT` is set at build
+  time. If unset, analytics is disabled — no network call is ever made.
+  `VITE_ANALYTICS_DOMAIN` is optional (defaults to `window.location.hostname`).
+- **Event posting**: `POST <endpoint>/api/event` with a JSON body
+  `{ type: 'pageview' | 'event', url, referrer?, name?, props?, domain, timestamp }`.
+  Both `sendBeacon` and `fetch` are used (beacon first, fetch fallback)
+  so events survive page unload. No cookies, no credentials
+  (`credentials: 'omit'`).
+- **Event allowlist**: hardcoded in `src/utils/analytics.ts`. Adding an
+  event means changing the allowlist AND the per-event property type AND
+  the privacy page — that friction is intentional. No event accepts
+  PHI (specialty, search term, id, patient/doctor/order id, clinical
+  text). Funnel events are bare counters, not contextual payloads.
+- **URL scrubbing**: `scrubUrl` keeps only the path; query strings are
+  dropped entirely; hash routes are parsed and their inner query is
+  dropped; UUIDs and long numeric ids in the path are replaced with
+  `:id`.
+- **Opt-out**: DNT=1 / DNT=yes and `navigator.globalPrivacyControl=true`
+  disable all collection. No cookie banner is shown because no cookies
+  are used and no PHI is collected.
+- **CSP**: deployment must allow only the configured analytics origin.
+  This repo doesn't ship a CSP header (it's a static SPA) — enforcement
+  is at the host layer (Pages headers, or `docforum-core` when it serves
+  the app).
+
+### Phase W7 — Router migration (issue #119)
+
+ADR `docs/adr/0001-routing-strategy.md` records the full decision. The
+configurable flag is the only "assumption" the rest of the system needs
+to know about:
+
+- `VITE_USE_HASH_ROUTER=true` at build time → `HashRouter` (required
+  for GitHub Pages, which has no server-side rewrite). Set in
+  `deploy-pages.yml`.
+- (default, flag absent or false) → `BrowserRouter` (any host with
+  rewrite rules: Netlify, Cloudflare Pages, Vercel, or served by
+  `docforum-core`).
+- `HashRedirectShim` (mounted only in BrowserRouter mode) detects a
+  root-path load with a `#/path` hash and replaces the history entry
+  with the clean path, preserving the hash's own query string. Old
+  bookmarks and previously-sent emailed links keep working.
 
 ## Roadmap / status
 See `ROADMAP.md` in this repo, and Phase 7 in `docforum-core`'s
