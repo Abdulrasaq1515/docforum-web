@@ -1,9 +1,12 @@
 import { Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { RequireAuth } from './components/RequireAuth';
+import { HashRedirectShim } from './components/HashRedirectShim';
+import { useAnalyticsPageview } from './hooks/useAnalyticsPageview';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
+import { PrivacyPage } from './pages/PrivacyPage';
 import { PatientDashboardPage } from './pages/PatientDashboardPage';
 import { DoctorDashboardPage } from './pages/DoctorDashboardPage';
 import { FacilityDashboardPage } from './pages/FacilityDashboardPage';
@@ -25,163 +28,168 @@ import { AdminSystemPage } from './pages/AdminSystemPage';
 import { AdminFlagsPage } from './pages/AdminFlagsPage';
 import { OrderVerifyPage } from './pages/OrderVerifyPage';
 import { FacilityPaymentsPage } from './pages/FacilityPaymentsPage';
-import { PatientChartPage } from "./pages/PatientChartPage";
+import { PatientChartPage } from './pages/PatientChartPage';
 
 export default function App() {
+  useAnalyticsPageview();
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<HomePage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="signup" element={<SignupPage />} />
-        <Route path="claim-account" element={<ClaimAccountPage />} />
-        {/* Issue-path routes (#34 `/account/access-log`, #37 `/payments`) stay
-            at the literal path the issues name, guarded to patients, rather
-            than being folded under /patient where the hub's nested routes
-            live. #32's detail page has no path of its own, so it nests. */}
-        <Route
-          path="account/access-log"
-          element={
-            <RequireAuth allowedRoles={['patient']}>
-              <AccessLogPage />
+    <>
+      <HashRedirectShim />
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="signup" element={<SignupPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="claim-account" element={<ClaimAccountPage />} />
+          {/* Issue-path routes (#34 /account/access-log, #37 /payments) stay
+              at the literal path the issues name, guarded to patients, rather
+              than being folded under /patient where the hub's nested routes
+              live. #32's detail page has no path of its own, so it nests. */}
+          <Route
+            path="account/access-log"
+            element={
+              <RequireAuth allowedRoles={['patient']}>
+                <AccessLogPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="payments"
+            element={
+              <RequireAuth allowedRoles={['patient']}>
+                <PaymentHistoryPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="payments/:intentId"
+            element={
+              <RequireAuth allowedRoles={['patient']}>
+                <PaymentDetailPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="account-deleted" element={<AccountDeletedPage />} />
+          <Route
+            path="care/*"
+            element={
+              <RequireAuth allowedRoles={['patient', 'doctor']}>
+                <CareThreadPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="patient/*"
+            element={
+              <RequireAuth allowedRoles={['patient']}>
+                <PatientDashboardPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="doctor" element={
+            <RequireAuth allowedRoles={['doctor']}>
+              <DoctorDashboardPage />
             </RequireAuth>
-          }
-        />
-        <Route
-          path="payments"
-          element={
-            <RequireAuth allowedRoles={['patient']}>
-              <PaymentHistoryPage />
+          } />
+          <Route path="doctor/insights" element={
+            <RequireAuth allowedRoles={['doctor']}>
+              <DoctorPracticeInsightsPage />
             </RequireAuth>
-          }
-        />
-        <Route
-          path="payments/:intentId"
-          element={
-            <RequireAuth allowedRoles={['patient']}>
-              <PaymentDetailPage />
+          } />
+          <Route path="doctor/consultation/:appointmentId" element={
+            <RequireAuth allowedRoles={['doctor']}>
+              <ConsultationNote />
             </RequireAuth>
-          }
-        />
-        <Route path="account-deleted" element={<AccountDeletedPage />} />
-        <Route
-          path="care/*"
-          element={
-            <RequireAuth allowedRoles={['patient', 'doctor']}>
-              <CareThreadPage />
+          } />
+          <Route path="doctor/messages" element={
+            <RequireAuth allowedRoles={['doctor']}>
+              <DoctorInbox />
             </RequireAuth>
-          }
-        />
-        <Route
-          path="patient/*"
-          element={
-            <RequireAuth allowedRoles={['patient']}>
-              <PatientDashboardPage />
-            </RequireAuth>
-          }
-        />
-        <Route path="doctor" element={
-          <RequireAuth allowedRoles={['doctor']}>
-            <DoctorDashboardPage />
-          </RequireAuth>
-        } />
-        <Route path="doctor/insights" element={
-          <RequireAuth allowedRoles={['doctor']}>
-            <DoctorPracticeInsightsPage />
-          </RequireAuth>
-        } />
-        <Route path="doctor/consultation/:appointmentId" element={
-          <RequireAuth allowedRoles={['doctor']}>
-            <ConsultationNote />
-          </RequireAuth>
-        } />
-        <Route path="doctor/messages" element={
-          <RequireAuth allowedRoles={['doctor']}>
-            <DoctorInbox />
-          </RequireAuth>
-        } />
-        <Route
-          path="doctor/patient-chart/:patientProfileId"
-          element={
-            <RequireAuth allowedRoles={["doctor"]}>
-              <PatientChartPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="facility/verify"
-          element={
-            <RequireAuth allowedRoles={['facility']}>
-              <OrderVerifyPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="facility/payments"
-          element={
-            <RequireAuth allowedRoles={['facility']}>
-              <FacilityPaymentsPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="facility/team"
-          element={
-            <RequireAuth allowedRoles={['facility']}>
-              <FacilityTeamPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="facility/*"
-          element={
-            <RequireAuth allowedRoles={['facility']}>
-              <FacilityDashboardPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="admin/audit"
-          element={
-            <RequireAuth allowedRoles={['admin']}>
-              <AdminAuditPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="admin/referrals"
-          element={
-            <RequireAuth allowedRoles={['admin']}>
-              <AdminReferralsPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="admin/system"
-          element={
-            <RequireAuth allowedRoles={['admin']}>
-              <AdminSystemPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="admin/flags"
-          element={
-            <RequireAuth allowedRoles={['admin']}>
-              <AdminFlagsPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="admin/*"
-          element={
-            <RequireAuth allowedRoles={['admin']}>
-              <AdminDashboardPage />
-            </RequireAuth>
-          }
-        />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+          } />
+          <Route
+            path="doctor/patient-chart/:patientProfileId"
+            element={
+              <RequireAuth allowedRoles={['doctor']}>
+                <PatientChartPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="facility/verify"
+            element={
+              <RequireAuth allowedRoles={['facility']}>
+                <OrderVerifyPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="facility/payments"
+            element={
+              <RequireAuth allowedRoles={['facility']}>
+                <FacilityPaymentsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="facility/team"
+            element={
+              <RequireAuth allowedRoles={['facility']}>
+                <FacilityTeamPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="facility/*"
+            element={
+              <RequireAuth allowedRoles={['facility']}>
+                <FacilityDashboardPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="admin/audit"
+            element={
+              <RequireAuth allowedRoles={['admin']}>
+                <AdminAuditPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="admin/referrals"
+            element={
+              <RequireAuth allowedRoles={['admin']}>
+                <AdminReferralsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="admin/system"
+            element={
+              <RequireAuth allowedRoles={['admin']}>
+                <AdminSystemPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="admin/flags"
+            element={
+              <RequireAuth allowedRoles={['admin']}>
+                <AdminFlagsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="admin/*"
+            element={
+              <RequireAuth allowedRoles={['admin']}>
+                <AdminDashboardPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </>
   );
 }
